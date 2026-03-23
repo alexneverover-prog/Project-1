@@ -112,18 +112,9 @@ button {
   color: var(--muted);
 }
 
-.hero,
 .workspace-section,
-.feature-section,
 .history-section {
   margin-top: 18px;
-}
-
-.hero {
-  display: grid;
-  gap: 28px;
-  align-items: center;
-  padding: 12px 0 10px;
 }
 
 .hero-copy h1,
@@ -132,11 +123,6 @@ button {
   font-family: "Fraunces", serif;
   line-height: 0.98;
   letter-spacing: -0.03em;
-}
-
-.hero-copy h1 {
-  font-size: clamp(2.35rem, 5.2vw, 4.35rem);
-  max-width: 11.5ch;
 }
 
 .eyebrow {
@@ -148,9 +134,7 @@ button {
   font-weight: 800;
 }
 
-.hero-text,
 .section-heading p,
-.feature-card p,
 .history-url,
 .memory-list,
 .field small {
@@ -158,22 +142,11 @@ button {
   line-height: 1.7;
 }
 
-.hero-text {
-  max-width: 640px;
-  margin: 18px 0 0;
-  font-size: 1rem;
-}
-
-.hero-actions,
 .action-row,
 .history-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-}
-
-.hero-actions {
-  margin-top: 28px;
 }
 
 .button {
@@ -215,144 +188,24 @@ button {
   transform: none;
 }
 
-.hero-points {
-  display: grid;
-  gap: 14px;
-  margin-top: 28px;
-}
-
-.hero-point,
 .feature-card,
 .history-item,
 .history-empty,
 .control-panel,
-.text-column,
-.hero-preview,
-.floating-card {
+.text-column {
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
 }
-
-.hero-point {
-  padding: 18px 18px 16px;
-  border-radius: var(--radius-md);
-}
-
-.hero-point span,
 .feature-card span,
-.mini-label,
 .column-header span,
 .panel-title strong {
   font-weight: 800;
 }
 
-.hero-point p {
-  margin: 8px 0 0;
-  color: var(--muted);
-}
-
-.hero-card {
-  position: relative;
-  min-height: 540px;
-  padding: 18px 0;
-}
-
-.floating-card {
-  position: absolute;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  width: min(280px, 74vw);
-}
-
-.card-soft {
-  top: 0;
-  right: 8%;
-}
-
-.card-tint {
-  left: 0;
-  bottom: 5%;
-  background: rgba(223, 233, 223, 0.94);
-}
-
-.mini-label {
-  display: inline-block;
-  margin-bottom: 8px;
-  color: var(--accent-deep);
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.floating-card p {
-  margin: 8px 0 0;
-  color: var(--muted);
-}
-
-.hero-preview {
-  position: absolute;
-  inset: 92px 8% 72px 12%;
-  border-radius: 40px;
-  overflow: hidden;
-  background: linear-gradient(180deg, rgba(255, 252, 247, 0.95), rgba(249, 242, 235, 0.95));
-}
-
-.preview-header {
-  display: flex;
-  gap: 8px;
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--line);
-}
-
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: #ecd0c4;
-}
-
-.preview-body {
-  padding: 26px 24px;
-}
-
-.preview-line {
-  height: 12px;
-  margin-bottom: 14px;
-  border-radius: 999px;
-  background: rgba(216, 128, 95, 0.18);
-}
-
-.preview-line.wide {
-  width: 86%;
-}
-
-.preview-line.short {
-  width: 48%;
-}
-
-.preview-line:not(.wide):not(.short) {
-  width: 66%;
-}
-
-.preview-spacer {
-  height: 18px;
-}
-
-.preview-callout {
-  margin-top: 34px;
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--accent-deep);
-  font-family: "Fraunces", serif;
-  font-size: 1.4rem;
-}
-
 .workspace-section,
-.feature-section,
 .history-section {
-  padding-top: 52px;
+  padding-top: 12px;
 }
 
 .section-heading {
@@ -399,6 +252,11 @@ button {
   background: rgba(255, 255, 255, 0.78);
   color: var(--ink);
   outline: none;
+}
+
+#manualTextInput {
+  resize: vertical;
+  min-height: 170px;
 }
 
 .field input:focus,
@@ -680,33 +538,14 @@ button {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 247, 240, 0.72));
 }
 
-.feature-grid,
 .history-list {
   display: grid;
   gap: 14px;
 }
-
-.feature-card,
 .history-item,
 .history-empty {
   padding: 22px;
   border-radius: 26px;
-}
-
-.feature-card span {
-  display: inline-flex;
-  width: 44px;
-  height: 44px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: rgba(216, 128, 95, 0.14);
-  color: var(--accent-deep);
-}
-
-.feature-card h3 {
-  margin: 18px 0 10px;
-  font-size: 1.16rem;
 }
 
 .history-item {
@@ -730,12 +569,7 @@ button {
     display: flex;
   }
 
-  .hero {
-    grid-template-columns: 1.02fr 0.98fr;
-  }
-
-  .control-grid,
-  .feature-grid {
+  .control-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -761,9 +595,6 @@ button {
     display: block;
   }
 
-  .feature-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 979px) {

@@ -1,12 +1,25 @@
 const STORAGE_KEYS = {
   language: "literaflow.language",
   sourceLanguage: "literaflow.sourceLanguage",
+  manualText: "literaflow.manualText",
   history: "literaflow.history",
 };
 
 const PUBLIC_TRANSLATE_URL = "https://api.mymemory.translated.net/get";
 const PAGE_PROXY_URL = "https://api.allorigins.win/raw?url=";
-const IGNORED_MEMORY_WORDS = new Set(["The", "Chapter", "And", "But", "When", "After", "Before"]);
+const IGNORED_MEMORY_WORDS = new Set([
+  "The", "Chapter", "And", "But", "When", "After", "Before", "Monday", "Tuesday", "Wednesday",
+  "Thursday", "Friday", "Saturday", "Sunday", "January", "February", "March", "April", "May",
+  "June", "July", "August", "September", "October", "November", "December", "Figure", "Table",
+  "Introduction", "Methods", "Results", "Discussion", "Conclusion", "Background", "Summary",
+  "Lancet", "Digital", "Health", "University", "Hospital", "Supplementary", "Appendix", "England",
+  "China", "Europe", "Asia", "Africa", "America", "Internet", "House", "Garden", "Story",
+]);
+const CHARACTER_CONTEXT_WORDS = [
+  "said", "asked", "replied", "whispered", "smiled", "laughed", "cried", "shouted", "looked",
+  "turned", "walked", "nodded", "thought", "told", "called", "answered", "murmured",
+];
+const PERSON_PRONOUNS = ["she", "her", "hers", "he", "him", "his"];
 
 const DEMO_HTML = `
   <article>
@@ -40,12 +53,15 @@ const NAME_GENDER_HINTS = {
 
 const elements = {
   urlInput: document.getElementById("urlInput"),
+  manualTextInput: document.getElementById("manualTextInput"),
   languageSelect: document.getElementById("languageSelect"),
   sourceLanguageSelect: document.getElementById("sourceLanguageSelect"),
   translateButton: document.getElementById("translateButton"),
   improveButton: document.getElementById("improveButton"),
   saveButton: document.getElementById("saveButton"),
   demoButton: document.getElementById("demoButton"),
+  pasteTextButton: document.getElementById("pasteTextButton"),
+  clearTextButton: document.getElementById("clearTextButton"),
   addCharacterButton: document.getElementById("addCharacterButton"),
   progressPanel: document.getElementById("progressPanel"),
   progressFill: document.getElementById("progressFill"),
@@ -91,11 +107,13 @@ function hydrateSettings() {
   elements.languageSelect.value = localStorage.getItem(STORAGE_KEYS.language) || elements.languageSelect.value;
   elements.sourceLanguageSelect.value =
     localStorage.getItem(STORAGE_KEYS.sourceLanguage) || elements.sourceLanguageSelect.value;
+  elements.manualTextInput.value = localStorage.getItem(STORAGE_KEYS.manualText) || "";
 }
 
 function wireEvents() {
   elements.languageSelect.addEventListener("change", persistSettings);
   elements.sourceLanguageSelect.addEventListener("change", persistSettings);
+  elements.manualTextInput.addEventListener("input", persistSettings);
   elements.urlInput.addEventListener("keydown", handleUrlKeydown);
   elements.characterMemory.addEventListener("input", handleMemoryInput);
   elements.characterMemory.addEventListener("change", handleMemoryInput);
@@ -105,6 +123,8 @@ function wireEvents() {
   elements.improveButton.addEventListener("click", handleImproveStyle);
   elements.saveButton.addEventListener("click", handleSaveTranslation);
   elements.demoButton.addEventListener("click", loadDemoSource);
+  elements.pasteTextButton.addEventListener("click", handlePasteFromClipboard);
+  elements.clearTextButton.addEventListener("click", handleClearManualText);
   elements.addCharacterButton.addEventListener("click", handleAddCharacter);
 
   elements.tabOriginal.addEventListener("click", () => switchTab("original"));
@@ -114,6 +134,7 @@ function wireEvents() {
 function persistSettings() {
   localStorage.setItem(STORAGE_KEYS.language, elements.languageSelect.value);
   localStorage.setItem(STORAGE_KEYS.sourceLanguage, elements.sourceLanguageSelect.value);
+  localStorage.setItem(STORAGE_KEYS.manualText, elements.manualTextInput.value);
 }
 
 function switchTab(tab) {
@@ -132,10 +153,12 @@ async function handleTranslate() {
   hideNotice();
 
   const url = elements.urlInput.value.trim();
-  if (!url) {
-    updateStatus("Добавьте ссылку на страницу", 0);
-    showNotice("Ссылка не добавлена", "Вставьте URL страницы в первое поле, затем нажмите «Перевести».");
-    elements.urlInput.focus();
+  const manualText = elements.manualTextInput.value.trim();
+
+  if (!url && !manualText) {
+    updateStatus("Добавьте ссылку или вставьте текст", 0);
+    showNotice("Нет исходного текста", "Вставьте ссылку на страницу или добавьте текст вручную в большое поле.");
+    elements.manualTextInput.focus();
     return;
   }
 
@@ -145,8 +168,8 @@ async function handleTranslate() {
     resetTranslation();
     updateStatus("Загружаю страницу и извлекаю основной текст", 10, "working");
 
-    const { title, blocks, source } = await fetchAndExtractSource(url);
-    state.sourceUrl = url;
+    const { title, blocks, source, sourceUrl } = await fetchAndExtractSource({ url, manualText });
+    state.sourceUrl = sourceUrl;
     state.sourceTitle = title;
     state.sourceBlocks = blocks;
     state.activeSourceLabel = source;
@@ -173,7 +196,7 @@ async function handleTranslate() {
     switchTab("translation");
   } catch (error) {
     console.error(error);
-    state.sourceUrl = url;
+    state.sourceUrl = url || "";
     state.sourceTitle = "";
     state.sourceBlocks = [];
     state.translatedBlocks = [];
@@ -243,6 +266,8 @@ function handleSaveTranslation() {
 function loadDemoSource() {
   hideNotice();
   elements.urlInput.value = "https://example.com/demo-story";
+  elements.manualTextInput.value = "";
+  persistSettings();
   elements.sourceMeta.textContent = "Демо-источник";
   const { title, blocks } = extractStructuredContent(DEMO_HTML);
   state.sourceUrl = elements.urlInput.value;
@@ -255,6 +280,29 @@ function loadDemoSource() {
   renderCharacterMemory();
   renderTranslation([], "Перевод пока не выполнен");
   updateStatus("Демо-текст загружен. Нажмите «Перевести» для проверки без ручного ключа.", 0, "idle");
+}
+
+async function handlePasteFromClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) {
+      showNotice("Буфер пуст", "В буфере обмена сейчас нет текста для вставки.");
+      return;
+    }
+    elements.manualTextInput.value = text;
+    persistSettings();
+    hideNotice();
+    updateStatus("Текст вставлен из буфера обмена", 0, "idle");
+  } catch (error) {
+    console.error(error);
+    showNotice("Не удалось вставить текст", "Браузер запретил доступ к буферу обмена. Вставьте текст вручную в поле.");
+  }
+}
+
+function handleClearManualText() {
+  elements.manualTextInput.value = "";
+  persistSettings();
+  updateStatus("Ручной текст очищен", 0, "idle");
 }
 
 function handleUrlKeydown(event) {
@@ -299,14 +347,28 @@ function hideNotice() {
   elements.noticePanel.hidden = true;
 }
 
-async function fetchAndExtractSource(url) {
+async function fetchAndExtractSource({ url, manualText }) {
+  if (manualText) {
+    const blocks = extractBlocksFromPlainText(manualText);
+    if (!blocks.length) {
+      throw new Error("Вставленный текст пустой или не подходит для перевода");
+    }
+
+    return {
+      title: "Вставленный текст",
+      blocks,
+      source: "Ручной ввод",
+      sourceUrl: "",
+    };
+  }
+
   const html = await fetchReadableHtml(url);
   const { title, blocks } = extractStructuredContent(html);
   if (!blocks.length) {
     throw new Error("Основной текст на странице не найден");
   }
 
-  return { title, blocks, source: "Страница загружена" };
+  return { title, blocks, source: "Страница загружена", sourceUrl: url };
 }
 
 async function fetchReadableHtml(url) {
@@ -412,40 +474,110 @@ function sanitizeInlineMarkup(node) {
   return `<${safeTag}>${safeChildren}</${safeTag}>`;
 }
 
+function extractBlocksFromPlainText(text) {
+  return text
+    .split(/\n\s*\n/)
+    .map((chunk) => normalizeWhitespace(chunk))
+    .filter((chunk) => chunk.length > 0)
+    .slice(0, 80)
+    .map((chunk, index) => ({
+      id: `manual-block-${index + 1}`,
+      tag: chunk.length < 90 ? "p" : "p",
+      html: escapeHtml(chunk),
+      text: chunk,
+    }));
+}
+
 function buildCharacterMemory(blocks) {
-  const memory = {};
+  const candidates = collectCharacterCandidates(blocks);
 
-  blocks.forEach((block) => {
-    const matches = block.text.match(/\b[A-Z][a-z]{2,}\b/g) || [];
-    matches.forEach((name) => {
-      if (IGNORED_MEMORY_WORDS.has(name)) {
-        return;
-      }
-
-      if (!memory[name]) {
-        memory[name] = {
-          id: createCharacterId(name),
-          name,
-          gender: NAME_GENDER_HINTS[name] || guessGenderFromContext(name, blocks),
-          notes: new Set(),
-          narrator: false,
-        };
-      }
-
-      const notes = inferNotes(name, block.text);
-      notes.forEach((note) => memory[name].notes.add(note));
-    });
-  });
-
-  return Object.values(memory)
+  return candidates
+    .sort((left, right) => right.score - left.score)
     .slice(0, 12)
     .map((info) => ({
-      id: info.id,
+      id: createCharacterId(info.name),
       name: info.name,
       gender: info.gender,
       notes: Array.from(info.notes).join(", "),
-      narrator: info.narrator,
+      narrator: false,
     }));
+}
+
+function collectCharacterCandidates(blocks) {
+  const memory = new Map();
+
+  blocks.forEach((block, blockIndex) => {
+    const text = block.text;
+    const matches = text.match(/\b[A-Z][a-z]{2,}\b/g) || [];
+
+    matches.forEach((name) => {
+      if (!isPotentialCharacterName(name, text, blockIndex)) {
+        return;
+      }
+
+      if (!memory.has(name)) {
+        memory.set(name, {
+          name,
+          score: 0,
+          gender: NAME_GENDER_HINTS[name] || guessGenderFromContext(name, blocks),
+          notes: new Set(),
+          hits: 0,
+        });
+      }
+
+      const entry = memory.get(name);
+      entry.hits += 1;
+      entry.score += scoreCharacterCandidate(name, text, blockIndex);
+      inferNotes(name, text).forEach((note) => entry.notes.add(note));
+    });
+  });
+
+  return Array.from(memory.values()).filter((entry) => entry.score >= 2 || entry.hits >= 2);
+}
+
+function isPotentialCharacterName(name, text, blockIndex) {
+  if (IGNORED_MEMORY_WORDS.has(name)) {
+    return false;
+  }
+
+  if (name.length < 3) {
+    return false;
+  }
+
+  if (/^[A-Z][a-z]+(?:tion|ment|ness|ship)$/.test(name)) {
+    return false;
+  }
+
+  const contextScore = scoreCharacterCandidate(name, text, blockIndex);
+  return contextScore >= 1;
+}
+
+function scoreCharacterCandidate(name, text, blockIndex) {
+  let score = 0;
+  const lowerText = text.toLowerCase();
+  const lowerName = name.toLowerCase();
+
+  if (new RegExp(`"${escapeRegExp(name)}|${escapeRegExp(name)}[^.?!]{0,30}"`).test(text)) {
+    score += 2;
+  }
+
+  if (PERSON_PRONOUNS.some((pronoun) => new RegExp(`${escapeRegExp(lowerName)}[^.?!]{0,60}\\b${pronoun}\\b`, "i").test(lowerText))) {
+    score += 2;
+  }
+
+  if (CHARACTER_CONTEXT_WORDS.some((verb) => new RegExp(`\\b${escapeRegExp(name)}\\b[^.?!]{0,24}\\b${verb}\\b`, "i").test(text))) {
+    score += 2;
+  }
+
+  if (new RegExp(`\\b(Mr|Mrs|Ms|Miss|Dr)\\.\\s+${escapeRegExp(name)}\\b`).test(text)) {
+    score += 2;
+  }
+
+  if (blockIndex > 0) {
+    score += 1;
+  }
+
+  return score;
 }
 
 function guessGenderFromContext(name, blocks) {
@@ -836,6 +968,7 @@ function saveHistoryEntry() {
     id: crypto.randomUUID(),
     title: state.sourceTitle || "Без названия",
     url: state.sourceUrl,
+    manualText: elements.manualTextInput.value.trim(),
     translatedBlocks: state.translatedBlocks,
     sourceBlocks: state.sourceBlocks,
     characterMemory: state.characterMemory,
@@ -879,6 +1012,7 @@ function openHistoryEntry(entryId) {
   state.characterMemory = entry.characterMemory || mergeCharacterMemory(buildCharacterMemory(entry.sourceBlocks), []);
 
   elements.urlInput.value = entry.url;
+  elements.manualTextInput.value = entry.manualText || "";
   renderSource(entry.sourceBlocks, entry.title, "История");
   renderTranslation(entry.translatedBlocks, `Открыто из истории · ${entry.language}`);
   renderCharacterMemory();

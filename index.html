@@ -29,79 +29,17 @@
 
       <nav class="main-nav">
         <a href="#workspace">Переводчик</a>
-        <a href="#features">Возможности</a>
         <a href="#history">История</a>
       </nav>
     </header>
 
     <main id="top">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Отдельный новый сайт</p>
-          <h1>Перевод страниц по ссылке так, как это сделал бы литературный редактор.</h1>
-          <p class="hero-text">
-            Вставьте ссылку на рассказ, статью или фанфик, получите структурированный перевод с учетом
-            контекста, имен персонажей, стиля текста и русской грамматики.
-          </p>
-
-          <div class="hero-actions">
-            <a class="button button-primary" href="#workspace">Открыть переводчик</a>
-            <a class="button button-secondary" href="#features">Посмотреть возможности</a>
-          </div>
-
-          <div class="hero-points">
-            <div class="hero-point">
-              <span>Контекст</span>
-              <p>Чанки переводятся с памятью о предыдущих абзацах.</p>
-            </div>
-            <div class="hero-point">
-              <span>Стиль</span>
-              <p>Сохраняется художественная подача, а не сухой машинный перевод.</p>
-            </div>
-            <div class="hero-point">
-              <span>Структура</span>
-              <p>Абзацы, диалоги, курсив и жирный текст не теряются.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="hero-card">
-          <div class="floating-card card-soft">
-            <span class="mini-label">Слой анализа</span>
-            <strong>Character Memory</strong>
-            <p>Определяет персонажей, предполагаемый род и закрепляет согласование по всему тексту.</p>
-          </div>
-          <div class="floating-card card-tint">
-            <span class="mini-label">Контекстное окно</span>
-            <strong>1-3 абзаца за запрос</strong>
-            <p>Каждый новый фрагмент получает предыдущий контекст, чтобы перевод не ломался на стыках.</p>
-          </div>
-          <div class="hero-preview">
-            <div class="preview-header">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
-            </div>
-            <div class="preview-body">
-              <div class="preview-line wide"></div>
-              <div class="preview-line"></div>
-              <div class="preview-line"></div>
-              <div class="preview-spacer"></div>
-              <div class="preview-line wide"></div>
-              <div class="preview-line short"></div>
-              <div class="preview-callout">"Не дословно, а естественно и книжно."</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section class="workspace-section" id="workspace">
         <div class="section-heading">
-          <p class="eyebrow">Workspace</p>
-          <h2>Переводчик страницы</h2>
+          <p class="eyebrow">Переводчик</p>
+          <h2>Перевод по ссылке или из вставленного текста</h2>
           <p>
-            Это самостоятельный сайт с mobile-first интерфейсом. На мобильных устройствах текст переключается табами,
-            на десктопе оригинал и перевод стоят рядом.
+            Вставьте ссылку на страницу или загрузите текст вручную. Если текст добавлен в поле ниже, сайт переведет именно его.
           </p>
         </div>
 
@@ -111,6 +49,20 @@
               <span>Ссылка на страницу</span>
               <input id="urlInput" type="url" placeholder="https://example.com/story/chapter-1" />
             </label>
+
+            <label class="field">
+              <span>Или вставьте исходный текст</span>
+              <textarea
+                id="manualTextInput"
+                rows="8"
+                placeholder="Вставьте сюда текст главы, статьи или отрывка. Если поле не пустое, перевод пойдет из него, даже если ссылка тоже заполнена."
+              ></textarea>
+            </label>
+
+            <div class="action-row compact">
+              <button class="button button-ghost" id="pasteTextButton" type="button">Вставить из буфера</button>
+              <button class="button button-ghost" id="clearTextButton" type="button">Очистить текст</button>
+            </div>
 
             <div class="control-grid">
               <label class="field">
@@ -209,36 +161,6 @@
               </article>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section class="feature-section" id="features">
-        <div class="section-heading">
-          <p class="eyebrow">Что внутри</p>
-          <h2>Сайт спроектирован под длинное чтение и качественный перевод</h2>
-        </div>
-
-        <div class="feature-grid">
-          <article class="feature-card">
-            <span>01</span>
-            <h3>Извлечение основного текста</h3>
-            <p>Сайт пытается вытащить только полезное содержимое страницы: абзацы, заголовки, цитаты и акцентное форматирование.</p>
-          </article>
-          <article class="feature-card">
-            <span>02</span>
-            <h3>Контекстная память</h3>
-            <p>Абзацы переводятся не изолированно: предыдущие фрагменты передаются в следующий запрос, чтобы не терять смысл и интонацию.</p>
-          </article>
-          <article class="feature-card">
-            <span>03</span>
-            <h3>Определение персонажей</h3>
-            <p>По именам, местоимениям и соседним предложениям собирается память о персонажах, чтобы не путать род и обращения.</p>
-          </article>
-          <article class="feature-card">
-            <span>04</span>
-            <h3>Мягкий современный UI</h3>
-            <p>Mobile-first интерфейс, мягкая палитра, большие отступы и спокойная типографика для комфортного чтения длинных текстов.</p>
-          </article>
         </div>
       </section>
 
