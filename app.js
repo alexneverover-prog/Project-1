@@ -1,10 +1,11 @@
 const STORAGE_KEYS = {
-  apiKey: "literaflow.apiKey",
-  model: "literaflow.model",
   language: "literaflow.language",
-  systemPrompt: "literaflow.systemPrompt",
+  sourceLanguage: "literaflow.sourceLanguage",
   history: "literaflow.history",
 };
+
+const PUBLIC_TRANSLATE_URL = "https://api.mymemory.translated.net/get";
+const PAGE_PROXY_URL = "https://api.allorigins.win/raw?url=";
 
 const DEMO_HTML = `
   <article>
@@ -39,9 +40,8 @@ const NAME_GENDER_HINTS = {
 const elements = {
   urlInput: document.getElementById("urlInput"),
   languageSelect: document.getElementById("languageSelect"),
-  modelInput: document.getElementById("modelInput"),
-  apiKeyInput: document.getElementById("apiKeyInput"),
-  systemPromptInput: document.getElementById("systemPromptInput"),
+  sourceLanguageSelect: document.getElementById("sourceLanguageSelect"),
+  advancedPanel: document.getElementById("advancedPanel"),
   translateButton: document.getElementById("translateButton"),
   improveButton: document.getElementById("improveButton"),
   saveButton: document.getElementById("saveButton"),
@@ -53,6 +53,9 @@ const elements = {
   translationContent: document.getElementById("translationContent"),
   sourceMeta: document.getElementById("sourceMeta"),
   translationMeta: document.getElementById("translationMeta"),
+  noticePanel: document.getElementById("noticePanel"),
+  noticeTitle: document.getElementById("noticeTitle"),
+  noticeText: document.getElementById("noticeText"),
   characterMemory: document.getElementById("characterMemory"),
   memoryBadge: document.getElementById("memoryBadge"),
   historyList: document.getElementById("historyList"),
@@ -81,18 +84,15 @@ function initialize() {
 }
 
 function hydrateSettings() {
-  elements.apiKeyInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
-  elements.modelInput.value = localStorage.getItem(STORAGE_KEYS.model) || elements.modelInput.value;
   elements.languageSelect.value = localStorage.getItem(STORAGE_KEYS.language) || elements.languageSelect.value;
-  elements.systemPromptInput.value =
-    localStorage.getItem(STORAGE_KEYS.systemPrompt) || elements.systemPromptInput.value;
+  elements.sourceLanguageSelect.value =
+    localStorage.getItem(STORAGE_KEYS.sourceLanguage) || elements.sourceLanguageSelect.value;
 }
 
 function wireEvents() {
-  elements.apiKeyInput.addEventListener("change", persistSettings);
-  elements.modelInput.addEventListener("change", persistSettings);
   elements.languageSelect.addEventListener("change", persistSettings);
-  elements.systemPromptInput.addEventListener("change", persistSettings);
+  elements.sourceLanguageSelect.addEventListener("change", persistSettings);
+  elements.urlInput.addEventListener("keydown", handleUrlKeydown);
 
   elements.translateButton.addEventListener("click", handleTranslate);
   elements.improveButton.addEventListener("click", handleImproveStyle);
@@ -104,10 +104,8 @@ function wireEvents() {
 }
 
 function persistSettings() {
-  localStorage.setItem(STORAGE_KEYS.apiKey, elements.apiKeyInput.value.trim());
-  localStorage.setItem(STORAGE_KEYS.model, elements.modelInput.value.trim());
   localStorage.setItem(STORAGE_KEYS.language, elements.languageSelect.value);
-  localStorage.setItem(STORAGE_KEYS.systemPrompt, elements.systemPromptInput.value.trim());
+  localStorage.setItem(STORAGE_KEYS.sourceLanguage, elements.sourceLanguageSelect.value);
 }
 
 function switchTab(tab) {
@@ -123,17 +121,13 @@ async function handleTranslate() {
     return;
   }
 
+  hideNotice();
+
   const url = elements.urlInput.value.trim();
   if (!url) {
     updateStatus("Добавьте ссылку на страницу", 0);
+    showNotice("Ссылка не добавлена", "Вставьте URL страницы в первое поле, затем нажмите «Перевести».");
     elements.urlInput.focus();
-    return;
-  }
-
-  const apiKey = elements.apiKeyInput.value.trim();
-  if (!apiKey) {
-    updateStatus("Добавьте OpenAI API key в расширенных настройках", 0);
-    elements.apiKeyInput.focus();
     return;
   }
 
@@ -182,12 +176,6 @@ async function handleImproveStyle() {
     return;
   }
 
-  const apiKey = elements.apiKeyInput.value.trim();
-  if (!apiKey) {
-    updateStatus("Нужен API key для улучшения стиля", 0);
-    return;
-  }
-
   try {
     state.isBusy = true;
     toggleControls();
@@ -231,6 +219,7 @@ function handleSaveTranslation() {
 }
 
 function loadDemoSource() {
+  hideNotice();
   elements.urlInput.value = "https://example.com/demo-story";
   elements.sourceMeta.textContent = "Демо-источник";
   const { title, blocks } = extractStructuredContent(DEMO_HTML);
@@ -242,7 +231,16 @@ function loadDemoSource() {
   renderSource(blocks, title, "Демо");
   renderCharacterMemory();
   renderTranslation([], "Перевод пока не выполнен");
-  updateStatus("Демо-текст загружен. Добавьте API key и нажмите «Перевести».", 0);
+  updateStatus("Демо-текст загружен. Нажмите «Перевести» для проверки без ручного ключа.", 0);
+}
+
+function handleUrlKeydown(event) {
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+  handleTranslate();
 }
 
 function toggleControls() {
@@ -266,27 +264,62 @@ function updateStatus(text, progress) {
   elements.progressFill.style.width = `${Math.max(0, Math.min(progress, 100))}%`;
 }
 
+function showNotice(title, text) {
+  elements.noticeTitle.textContent = title;
+  elements.noticeText.textContent = text;
+  elements.noticePanel.hidden = false;
+}
+
+function hideNotice() {
+  elements.noticePanel.hidden = true;
+}
+
 async function fetchAndExtractSource(url) {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Страница ответила статусом ${response.status}`);
-    }
-    const html = await response.text();
+    const html = await fetchReadableHtml(url);
     const { title, blocks } = extractStructuredContent(html);
     if (!blocks.length) {
       throw new Error("Основной текст на странице не найден");
     }
-    return { title, blocks, source: "Прямое чтение страницы" };
+    return { title, blocks, source: "Страница загружена" };
   } catch (error) {
     console.warn("Direct fetch failed, using demo fallback.", error);
     const { title, blocks } = extractStructuredContent(DEMO_HTML);
     return {
       title,
       blocks,
-      source: "Демо fallback. Для production нужен серверный прокси из-за CORS у внешних сайтов.",
+      source: "Демо fallback. Источник не открылся из браузера.",
     };
   }
+}
+
+async function fetchReadableHtml(url) {
+  const attempts = [
+    { href: url, source: "direct" },
+    { href: `${PAGE_PROXY_URL}${encodeURIComponent(url)}`, source: "proxy" },
+  ];
+
+  let lastError = null;
+
+  for (const attempt of attempts) {
+    try {
+      const response = await fetch(attempt.href);
+      if (!response.ok) {
+        throw new Error(`Страница ответила статусом ${response.status}`);
+      }
+
+      const html = await response.text();
+      if (!normalizeWhitespace(html).length) {
+        throw new Error("Пустой ответ");
+      }
+
+      return html;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Не удалось получить HTML страницы");
 }
 
 function extractStructuredContent(html) {
@@ -436,9 +469,7 @@ async function translateBlockGroups({ blocks, mode, baseProgress, maxProgress })
       mode,
       rollingContext,
       targetLanguage: elements.languageSelect.value,
-      model: elements.modelInput.value.trim(),
-      systemPrompt: elements.systemPromptInput.value.trim(),
-      apiKey: elements.apiKeyInput.value.trim(),
+      sourceLanguage: elements.sourceLanguageSelect.value,
       characterMemory: state.characterMemory,
     });
 
@@ -455,96 +486,62 @@ async function translateBlockGroups({ blocks, mode, baseProgress, maxProgress })
 async function requestTranslation({
   chunk,
   mode,
-  rollingContext,
   targetLanguage,
-  model,
-  systemPrompt,
-  apiKey,
-  characterMemory,
+  sourceLanguage,
 }) {
-  const taskPrompt =
-    mode === "translate"
-      ? `Переведи каждый блок на язык "${targetLanguage}". Верни только JSON-массив объектов с полями id и html. Сохраняй HTML внутри блока: <p>, <em>, <strong>, <blockquote>, <h3>, <br />.`
-      : `Перепиши каждый блок на языке "${targetLanguage}" более литературно, сохранив смысл, структуру и HTML-разметку. Верни только JSON-массив объектов с полями id и html.`;
+  if (mode === "polish") {
+    return chunk.map((block) => {
+      const polishedHtml = polishTranslatedHtml(block.html, targetLanguage);
+      return {
+        ...block,
+        html: polishedHtml,
+        text: stripHtml(polishedHtml),
+      };
+    });
+  }
 
-  const input = [
-    {
-      role: "system",
-      content: [
-        {
-          type: "input_text",
-          text: `${systemPrompt}\n\n${taskPrompt}`,
-        },
-      ],
-    },
-    {
-      role: "user",
-      content: [
-        {
-          type: "input_text",
-          text: [
-            `Текущий режим: ${mode}`,
-            `Память персонажей: ${JSON.stringify(characterMemory, null, 2)}`,
-            `Предыдущий контекст: ${rollingContext || "контекст отсутствует"}`,
-            `Текущие блоки: ${JSON.stringify(chunk, null, 2)}`,
-            "Нельзя ломать абзацы или склеивать разные блоки между собой.",
-          ].join("\n\n"),
-        },
-      ],
-    },
-  ];
+  return Promise.all(
+    chunk.map(async (block) => {
+      const translatedHtml = await translateBlockHtml(block.html, {
+        sourceLanguage,
+        targetLanguage,
+      });
+      return {
+        ...block,
+        html: translatedHtml,
+        text: stripHtml(translatedHtml),
+      };
+    })
+  );
+}
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model || "gpt-4.1-mini",
-      input,
-      temperature: 0.7,
-    }),
+async function translateBlockHtml(html, { sourceLanguage, targetLanguage }) {
+  const encoded = encodeInlineMarkup(html);
+  const sourceCode = resolveSourceLanguageCode(sourceLanguage, stripHtml(html));
+  const targetCode = resolveTargetLanguageCode(targetLanguage);
+  const translated = await translatePublicText(encoded, sourceCode, targetCode);
+  return decodeInlineMarkup(translated);
+}
+
+async function translatePublicText(text, sourceCode, targetCode) {
+  const params = new URLSearchParams({
+    q: text,
+    langpair: `${sourceCode}|${targetCode}`,
+    de: "litera@flow.local",
   });
 
+  const response = await fetch(`${PUBLIC_TRANSLATE_URL}?${params.toString()}`);
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Ошибка OpenAI API: ${response.status}. ${errorText}`);
+    throw new Error(`Публичный переводчик временно недоступен: ${response.status}`);
   }
 
   const data = await response.json();
-  const outputText = data.output_text || extractOutputText(data);
-  const parsed = parseJsonArray(outputText);
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("Модель вернула неожиданный формат. Ожидался JSON-массив блоков.");
+  const translatedText = decodeEntities(data.responseData?.translatedText || "");
+  if (!translatedText) {
+    throw new Error("Публичный переводчик вернул пустой ответ");
   }
 
-  return chunk.map((block) => {
-    const translated = parsed.find((item) => item.id === block.id);
-    return {
-      ...block,
-      html: translated?.html || block.html,
-      text: stripHtml(translated?.html || block.html),
-    };
-  });
-}
-
-function extractOutputText(data) {
-  const chunks = [];
-  (data.output || []).forEach((item) => {
-    (item.content || []).forEach((contentItem) => {
-      if (contentItem.type === "output_text" && contentItem.text) {
-        chunks.push(contentItem.text);
-      }
-    });
-  });
-  return chunks.join("\n");
-}
-
-function parseJsonArray(text) {
-  const cleaned = text.trim().replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-  return JSON.parse(cleaned);
+  return translatedText;
 }
 
 function chunkBlocks(blocks, chunkSize) {
@@ -574,6 +571,99 @@ function renderTranslation(blocks, meta) {
   elements.translationContent.innerHTML = blocks
     .map((block) => `<${block.tag}>${block.html}</${block.tag}>`)
     .join("");
+}
+
+function resolveSourceLanguageCode(selected, text) {
+  if (selected && selected !== "auto") {
+    return selected;
+  }
+
+  if (/[а-яёіїє]/i.test(text)) {
+    return "ru";
+  }
+
+  if (/[äöüß]/i.test(text)) {
+    return "de";
+  }
+
+  if (/[àâçéèêëîïôûùüÿœ]/i.test(text)) {
+    return "fr";
+  }
+
+  if (/[ñ¡¿]/i.test(text)) {
+    return "es";
+  }
+
+  return "en";
+}
+
+function resolveTargetLanguageCode(language) {
+  const map = {
+    Русский: "ru",
+    Украинский: "uk",
+    Немецкий: "de",
+    Французский: "fr",
+  };
+
+  return map[language] || "ru";
+}
+
+function encodeInlineMarkup(html) {
+  return html
+    .replace(/<strong>/gi, " __LF_STRONG_OPEN__ ")
+    .replace(/<\/strong>/gi, " __LF_STRONG_CLOSE__ ")
+    .replace(/<b>/gi, " __LF_STRONG_OPEN__ ")
+    .replace(/<\/b>/gi, " __LF_STRONG_CLOSE__ ")
+    .replace(/<em>/gi, " __LF_EM_OPEN__ ")
+    .replace(/<\/em>/gi, " __LF_EM_CLOSE__ ")
+    .replace(/<i>/gi, " __LF_EM_OPEN__ ")
+    .replace(/<\/i>/gi, " __LF_EM_CLOSE__ ")
+    .replace(/<br\s*\/?>/gi, " __LF_BR__ ");
+}
+
+function decodeInlineMarkup(text) {
+  return text
+    .replace(/__LF_STRONG_OPEN__/g, "<strong>")
+    .replace(/__LF_STRONG_CLOSE__/g, "</strong>")
+    .replace(/__LF_EM_OPEN__/g, "<em>")
+    .replace(/__LF_EM_CLOSE__/g, "</em>")
+    .replace(/__LF_BR__/g, "<br />")
+    .replace(/\s+(<\/?(?:strong|em)>)/g, "$1")
+    .replace(/(<br \/>)+\s*/g, "<br />");
+}
+
+function polishTranslatedHtml(html, targetLanguage) {
+  if (resolveTargetLanguageCode(targetLanguage) !== "ru") {
+    return html;
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    node.textContent = polishRussianText(node.textContent || "");
+  });
+
+  return container.innerHTML;
+}
+
+function polishRussianText(text) {
+  return text
+    .replace(/\s{2,}/g, " ")
+    .replace(/(^|[\s(])-\s/g, "$1— ")
+    .replace(/"\s*([^"]+?)\s*"/g, "«$1»")
+    .replace(/\.{3}/g, "…")
+    .replace(/\s+([,.;!?])/g, "$1")
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
+    .trim();
 }
 
 function renderCharacterMemory() {
@@ -706,6 +796,12 @@ function stripHtml(html) {
   const div = document.createElement("div");
   div.innerHTML = html;
   return normalizeWhitespace(div.textContent || "");
+}
+
+function decodeEntities(text) {
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = text;
+  return textarea.value;
 }
 
 function escapeHtml(text) {

@@ -135,8 +135,8 @@ button {
 }
 
 .hero-copy h1 {
-  font-size: clamp(3rem, 7vw, 5.8rem);
-  max-width: 10.5ch;
+  font-size: clamp(2.35rem, 5.2vw, 4.35rem);
+  max-width: 11.5ch;
 }
 
 .eyebrow {
@@ -161,7 +161,7 @@ button {
 .hero-text {
   max-width: 640px;
   margin: 18px 0 0;
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .hero-actions,
@@ -430,6 +430,17 @@ button {
   margin-bottom: 14px;
 }
 
+.info-stack {
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.info-stack p {
+  margin: 0;
+}
+
 .compact {
   margin-top: 12px;
 }
@@ -468,6 +479,25 @@ button {
 
 .progress-meta {
   margin-top: 12px;
+}
+
+.notice-panel {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(190, 103, 73, 0.24);
+  border-radius: 18px;
+  background: rgba(255, 244, 239, 0.9);
+  color: #744632;
+}
+
+.notice-panel strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.notice-panel p {
+  margin: 0;
+  line-height: 1.6;
 }
 
 .progress-meta span,
@@ -667,4 +697,3 @@ button {
     flex-direction: column;
   }
 }
-

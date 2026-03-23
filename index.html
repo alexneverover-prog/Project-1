@@ -124,24 +124,26 @@
               </label>
 
               <label class="field">
-                <span>LLM модель</span>
-                <input id="modelInput" type="text" value="gpt-4.1-mini" />
+                <span>Язык оригинала</span>
+                <select id="sourceLanguageSelect">
+                  <option value="auto">Определить автоматически</option>
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                  <option value="fr">Français</option>
+                  <option value="es">Español</option>
+                  <option value="it">Italiano</option>
+                </select>
               </label>
             </div>
 
-            <details class="advanced-panel">
-              <summary>Расширенные настройки</summary>
+            <details class="advanced-panel" id="advancedPanel">
+              <summary>Как работает сайт</summary>
 
-              <label class="field">
-                <span>OpenAI API key</span>
-                <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" />
-                <small>Ключ хранится только в вашем браузере через localStorage.</small>
-              </label>
-
-              <label class="field">
-                <span>Системная инструкция</span>
-                <textarea id="systemPromptInput" rows="6">Переведи текст как профессиональный литературный переводчик. Сохрани стиль художественного текста, структуру абзацев, диалоги, курсив и жирный текст. Учитывай предыдущий контекст, пол персонажей, устойчивые выражения и естественность русского языка. Не переводи дословно.</textarea>
-              </label>
+              <div class="info-stack">
+                <p>Пользовательский API key больше не нужен. Сайт использует публичный переводчик для базового перевода прямо из браузера.</p>
+                <p>Для загрузки HTML сначала используется прямой запрос к странице, а если сайт блокирует чтение, включается прокси-fallback. Некоторые страницы все равно могут быть недоступны из-за CORS или защиты сайта.</p>
+                <p>Кнопка «Улучшить стиль» делает локальную литературную правку уже полученного перевода: выравнивает пунктуацию, оформление диалогов и общую читабельность.</p>
+              </div>
             </details>
 
             <div class="action-row">
@@ -162,6 +164,11 @@
                 <strong id="statusText">Готово к переводу</strong>
                 <span id="progressText">0%</span>
               </div>
+            </div>
+
+            <div class="notice-panel" id="noticePanel" hidden>
+              <strong id="noticeTitle">Нужно внимание</strong>
+              <p id="noticeText">Вставьте ссылку и нажмите «Перевести». Если источник не откроется, можно проверить интерфейс на демо-тексте.</p>
             </div>
 
             <div class="memory-panel">
