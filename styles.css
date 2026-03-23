@@ -413,34 +413,6 @@ button {
   gap: 14px;
 }
 
-.advanced-panel {
-  margin: 18px 0 20px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.38);
-}
-
-.advanced-panel summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.advanced-panel[open] summary {
-  margin-bottom: 14px;
-}
-
-.info-stack {
-  display: grid;
-  gap: 10px;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.info-stack p {
-  margin: 0;
-}
-
 .compact {
   margin-top: 12px;
 }
@@ -477,8 +449,42 @@ button {
   gap: 12px;
 }
 
+.progress-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .progress-meta {
   margin-top: 12px;
+}
+
+.status-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(117, 100, 87, 0.14);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.progress-panel.is-success {
+  border-color: rgba(76, 145, 102, 0.24);
+  background: rgba(237, 248, 239, 0.94);
+}
+
+.progress-panel.is-success .progress-track {
+  display: none;
+}
+
+.progress-panel.is-success .status-icon {
+  background: #4c9166;
+  color: white;
 }
 
 .notice-panel {
@@ -516,6 +522,16 @@ button {
   background: rgba(255, 255, 255, 0.45);
 }
 
+.panel-copy {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.memory-actions {
+  margin-top: 16px;
+}
+
 .memory-list {
   display: grid;
   gap: 10px;
@@ -526,6 +542,61 @@ button {
   padding: 13px 14px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.75);
+}
+
+.memory-entry.memory-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.memory-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.memory-inline {
+  display: grid;
+  gap: 10px;
+}
+
+.memory-entry label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.memory-entry input,
+.memory-entry select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+}
+
+.memory-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.memory-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.memory-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
 }
 
 .memory-entry strong {
@@ -666,6 +737,10 @@ button {
   .control-grid,
   .feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .memory-inline {
+    grid-template-columns: 1.2fr 0.8fr;
   }
 }
 

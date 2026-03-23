@@ -136,16 +136,6 @@
               </label>
             </div>
 
-            <details class="advanced-panel" id="advancedPanel">
-              <summary>Как работает сайт</summary>
-
-              <div class="info-stack">
-                <p>Пользовательский API key больше не нужен. Сайт использует публичный переводчик для базового перевода прямо из браузера.</p>
-                <p>Для загрузки HTML сначала используется прямой запрос к странице, а если сайт блокирует чтение, включается прокси-fallback. Некоторые страницы все равно могут быть недоступны из-за CORS или защиты сайта.</p>
-                <p>Кнопка «Улучшить стиль» делает локальную литературную правку уже полученного перевода: выравнивает пунктуацию, оформление диалогов и общую читабельность.</p>
-              </div>
-            </details>
-
             <div class="action-row">
               <button class="button button-primary" id="translateButton">Перевести</button>
               <button class="button button-secondary" id="improveButton" disabled>Улучшить стиль</button>
@@ -156,12 +146,15 @@
               <button class="button button-ghost" id="demoButton">Загрузить демо</button>
             </div>
 
-            <div class="progress-panel" aria-live="polite">
+            <div class="progress-panel" id="progressPanel" aria-live="polite">
               <div class="progress-track">
                 <div class="progress-fill" id="progressFill"></div>
               </div>
               <div class="progress-meta">
-                <strong id="statusText">Готово к переводу</strong>
+                <div class="progress-status">
+                  <span class="status-icon" id="statusIcon" aria-hidden="true">...</span>
+                  <strong id="statusText">Готово к переводу</strong>
+                </div>
                 <span id="progressText">0%</span>
               </div>
             </div>
@@ -175,6 +168,12 @@
               <div class="panel-title">
                 <strong>Память персонажей</strong>
                 <span id="memoryBadge">0 записей</span>
+              </div>
+              <p class="panel-copy">
+                Проверьте персонажей перед повторным переводом: можно поменять имя, род, заметку и вручную отметить рассказчика.
+              </p>
+              <div class="memory-actions">
+                <button class="button button-ghost" id="addCharacterButton" type="button">Добавить персонажа</button>
               </div>
               <div id="characterMemory" class="memory-list empty-state">
                 После анализа здесь появятся имена, вероятный род и контекстные заметки.

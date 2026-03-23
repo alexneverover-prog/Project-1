@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
 
 const PUBLIC_TRANSLATE_URL = "https://api.mymemory.translated.net/get";
 const PAGE_PROXY_URL = "https://api.allorigins.win/raw?url=";
+const IGNORED_MEMORY_WORDS = new Set(["The", "Chapter", "And", "But", "When", "After", "Before"]);
 
 const DEMO_HTML = `
   <article>
@@ -41,14 +42,16 @@ const elements = {
   urlInput: document.getElementById("urlInput"),
   languageSelect: document.getElementById("languageSelect"),
   sourceLanguageSelect: document.getElementById("sourceLanguageSelect"),
-  advancedPanel: document.getElementById("advancedPanel"),
   translateButton: document.getElementById("translateButton"),
   improveButton: document.getElementById("improveButton"),
   saveButton: document.getElementById("saveButton"),
   demoButton: document.getElementById("demoButton"),
+  addCharacterButton: document.getElementById("addCharacterButton"),
+  progressPanel: document.getElementById("progressPanel"),
   progressFill: document.getElementById("progressFill"),
   progressText: document.getElementById("progressText"),
   statusText: document.getElementById("statusText"),
+  statusIcon: document.getElementById("statusIcon"),
   originalContent: document.getElementById("originalContent"),
   translationContent: document.getElementById("translationContent"),
   sourceMeta: document.getElementById("sourceMeta"),
@@ -71,7 +74,8 @@ const state = {
   sourceTitle: "",
   sourceBlocks: [],
   translatedBlocks: [],
-  characterMemory: {},
+  characterMemory: [],
+  activeSourceLabel: "",
   isBusy: false,
 };
 
@@ -93,11 +97,15 @@ function wireEvents() {
   elements.languageSelect.addEventListener("change", persistSettings);
   elements.sourceLanguageSelect.addEventListener("change", persistSettings);
   elements.urlInput.addEventListener("keydown", handleUrlKeydown);
+  elements.characterMemory.addEventListener("input", handleMemoryInput);
+  elements.characterMemory.addEventListener("change", handleMemoryInput);
+  elements.characterMemory.addEventListener("click", handleMemoryClick);
 
   elements.translateButton.addEventListener("click", handleTranslate);
   elements.improveButton.addEventListener("click", handleImproveStyle);
   elements.saveButton.addEventListener("click", handleSaveTranslation);
   elements.demoButton.addEventListener("click", loadDemoSource);
+  elements.addCharacterButton.addEventListener("click", handleAddCharacter);
 
   elements.tabOriginal.addEventListener("click", () => switchTab("original"));
   elements.tabTranslation.addEventListener("click", () => switchTab("translation"));
@@ -135,17 +143,18 @@ async function handleTranslate() {
     state.isBusy = true;
     toggleControls();
     resetTranslation();
-    updateStatus("Загружаю страницу и извлекаю основной текст", 10);
+    updateStatus("Загружаю страницу и извлекаю основной текст", 10, "working");
 
     const { title, blocks, source } = await fetchAndExtractSource(url);
     state.sourceUrl = url;
     state.sourceTitle = title;
     state.sourceBlocks = blocks;
-    state.characterMemory = buildCharacterMemory(blocks);
+    state.activeSourceLabel = source;
+    state.characterMemory = mergeCharacterMemory(buildCharacterMemory(blocks), state.characterMemory);
     renderSource(blocks, title, source);
     renderCharacterMemory();
 
-    updateStatus("Перевожу чанками с учетом контекста", 32);
+    updateStatus("Перевожу чанками с учетом контекста", 32, "working");
     const translatedBlocks = await translateBlockGroups({
       blocks,
       mode: "translate",
@@ -160,11 +169,24 @@ async function handleTranslate() {
 
     saveHistoryEntry();
     renderHistory();
-    updateStatus("Перевод готов", 100);
+    updateStatus("Перевод готов", 100, "success");
     switchTab("translation");
   } catch (error) {
     console.error(error);
-    updateStatus(error.message || "Не удалось выполнить перевод", 0);
+    state.sourceUrl = url;
+    state.sourceTitle = "";
+    state.sourceBlocks = [];
+    state.translatedBlocks = [];
+    state.characterMemory = [];
+    state.activeSourceLabel = "";
+    renderSourceError(url, error.message || "Не удалось извлечь текст страницы.");
+    renderTranslation([], "Перевод не выполнен");
+    renderCharacterMemory();
+    showNotice(
+      "Страница не открылась",
+      "Этот сайт, вероятно, запрещает чтение статьи из браузера или отдает HTML в недоступном формате. Демо-текст больше не подставляется автоматически."
+    );
+    updateStatus(error.message || "Не удалось выполнить перевод", 0, "error");
   } finally {
     state.isBusy = false;
     toggleControls();
@@ -179,7 +201,7 @@ async function handleImproveStyle() {
   try {
     state.isBusy = true;
     toggleControls();
-    updateStatus("Улучшаю стиль перевода без потери смысла", 18);
+    updateStatus("Улучшаю стиль перевода без потери смысла", 18, "working");
 
     const polished = await translateBlockGroups({
       blocks: state.translatedBlocks,
@@ -192,10 +214,10 @@ async function handleImproveStyle() {
     renderTranslation(polished, "Стиль дополнительно улучшен");
     saveHistoryEntry();
     renderHistory();
-    updateStatus("Литературная правка завершена", 100);
+    updateStatus("Литературная правка завершена", 100, "success");
   } catch (error) {
     console.error(error);
-    updateStatus(error.message || "Не удалось улучшить стиль", 0);
+    updateStatus(error.message || "Не удалось улучшить стиль", 0, "error");
   } finally {
     state.isBusy = false;
     toggleControls();
@@ -226,12 +248,13 @@ function loadDemoSource() {
   state.sourceUrl = elements.urlInput.value;
   state.sourceTitle = title;
   state.sourceBlocks = blocks;
-  state.characterMemory = buildCharacterMemory(blocks);
+  state.characterMemory = mergeCharacterMemory(buildCharacterMemory(blocks), state.characterMemory);
   state.translatedBlocks = [];
+  state.activeSourceLabel = "Демо";
   renderSource(blocks, title, "Демо");
   renderCharacterMemory();
   renderTranslation([], "Перевод пока не выполнен");
-  updateStatus("Демо-текст загружен. Нажмите «Перевести» для проверки без ручного ключа.", 0);
+  updateStatus("Демо-текст загружен. Нажмите «Перевести» для проверки без ручного ключа.", 0, "idle");
 }
 
 function handleUrlKeydown(event) {
@@ -258,10 +281,12 @@ function resetTranslation() {
   elements.saveButton.disabled = true;
 }
 
-function updateStatus(text, progress) {
+function updateStatus(text, progress, variant = "idle") {
   elements.statusText.textContent = text;
   elements.progressText.textContent = `${Math.round(progress)}%`;
   elements.progressFill.style.width = `${Math.max(0, Math.min(progress, 100))}%`;
+  elements.progressPanel.classList.toggle("is-success", variant === "success");
+  elements.statusIcon.textContent = variant === "success" ? "✓" : variant === "error" ? "!" : "...";
 }
 
 function showNotice(title, text) {
@@ -275,22 +300,13 @@ function hideNotice() {
 }
 
 async function fetchAndExtractSource(url) {
-  try {
-    const html = await fetchReadableHtml(url);
-    const { title, blocks } = extractStructuredContent(html);
-    if (!blocks.length) {
-      throw new Error("Основной текст на странице не найден");
-    }
-    return { title, blocks, source: "Страница загружена" };
-  } catch (error) {
-    console.warn("Direct fetch failed, using demo fallback.", error);
-    const { title, blocks } = extractStructuredContent(DEMO_HTML);
-    return {
-      title,
-      blocks,
-      source: "Демо fallback. Источник не открылся из браузера.",
-    };
+  const html = await fetchReadableHtml(url);
+  const { title, blocks } = extractStructuredContent(html);
+  if (!blocks.length) {
+    throw new Error("Основной текст на странице не найден");
   }
+
+  return { title, blocks, source: "Страница загружена" };
 }
 
 async function fetchReadableHtml(url) {
@@ -319,7 +335,11 @@ async function fetchReadableHtml(url) {
     }
   }
 
-  throw lastError || new Error("Не удалось получить HTML страницы");
+  throw new Error(
+    `Не удалось получить HTML страницы. Возможная причина: защита сайта, CORS или блокировка прокси. ${
+      lastError?.message ? `Последняя ошибка: ${lastError.message}` : ""
+    }`.trim()
+  );
 }
 
 function extractStructuredContent(html) {
@@ -398,10 +418,17 @@ function buildCharacterMemory(blocks) {
   blocks.forEach((block) => {
     const matches = block.text.match(/\b[A-Z][a-z]{2,}\b/g) || [];
     matches.forEach((name) => {
+      if (IGNORED_MEMORY_WORDS.has(name)) {
+        return;
+      }
+
       if (!memory[name]) {
         memory[name] = {
+          id: createCharacterId(name),
+          name,
           gender: NAME_GENDER_HINTS[name] || guessGenderFromContext(name, blocks),
           notes: new Set(),
+          narrator: false,
         };
       }
 
@@ -410,17 +437,15 @@ function buildCharacterMemory(blocks) {
     });
   });
 
-  return Object.fromEntries(
-    Object.entries(memory)
-      .slice(0, 12)
-      .map(([name, info]) => [
-        name,
-        {
-          gender: info.gender,
-          notes: Array.from(info.notes),
-        },
-      ])
-  );
+  return Object.values(memory)
+    .slice(0, 12)
+    .map((info) => ({
+      id: info.id,
+      name: info.name,
+      gender: info.gender,
+      notes: Array.from(info.notes).join(", "),
+      narrator: info.narrator,
+    }));
 }
 
 function guessGenderFromContext(name, blocks) {
@@ -467,10 +492,8 @@ async function translateBlockGroups({ blocks, mode, baseProgress, maxProgress })
     const result = await requestTranslation({
       chunk,
       mode,
-      rollingContext,
       targetLanguage: elements.languageSelect.value,
       sourceLanguage: elements.sourceLanguageSelect.value,
-      characterMemory: state.characterMemory,
     });
 
     translated.push(...result);
@@ -491,7 +514,7 @@ async function requestTranslation({
 }) {
   if (mode === "polish") {
     return chunk.map((block) => {
-      const polishedHtml = polishTranslatedHtml(block.html, targetLanguage);
+      const polishedHtml = polishTranslatedHtml(block.html, targetLanguage, state.characterMemory);
       return {
         ...block,
         html: polishedHtml,
@@ -506,10 +529,11 @@ async function requestTranslation({
         sourceLanguage,
         targetLanguage,
       });
+      const correctedHtml = applyMemoryCorrections(translatedHtml, targetLanguage, state.characterMemory);
       return {
         ...block,
-        html: translatedHtml,
-        text: stripHtml(translatedHtml),
+        html: correctedHtml,
+        text: stripHtml(correctedHtml),
       };
     })
   );
@@ -557,6 +581,16 @@ function renderSource(blocks, title, sourceLabel) {
   elements.originalContent.innerHTML = blocks
     .map((block) => `<${block.tag}>${block.html}</${block.tag}>`)
     .join("");
+}
+
+function renderSourceError(url, message) {
+  elements.sourceMeta.textContent = "Источник не извлечен";
+  elements.originalContent.innerHTML = `
+    <h3>Не удалось открыть страницу</h3>
+    <p><strong>URL:</strong> ${escapeHtml(url)}</p>
+    <p>${escapeHtml(message)}</p>
+    <blockquote>Попробуйте другую страницу, нажмите «Загрузить демо» для проверки интерфейса или используйте версию сайта с серверным прокси.</blockquote>
+  `;
 }
 
 function renderTranslation(blocks, meta) {
@@ -632,7 +666,7 @@ function decodeInlineMarkup(text) {
     .replace(/(<br \/>)+\s*/g, "<br />");
 }
 
-function polishTranslatedHtml(html, targetLanguage) {
+function applyMemoryCorrections(html, targetLanguage, memory) {
   if (resolveTargetLanguageCode(targetLanguage) !== "ru") {
     return html;
   }
@@ -648,7 +682,29 @@ function polishTranslatedHtml(html, targetLanguage) {
   }
 
   textNodes.forEach((node) => {
-    node.textContent = polishRussianText(node.textContent || "");
+    node.textContent = applyMemoryCorrectionsToText(node.textContent || "", memory);
+  });
+
+  return container.innerHTML;
+}
+
+function polishTranslatedHtml(html, targetLanguage, memory) {
+  if (resolveTargetLanguageCode(targetLanguage) !== "ru") {
+    return html;
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    node.textContent = polishRussianText(applyMemoryCorrectionsToText(node.textContent || "", memory));
   });
 
   return container.innerHTML;
@@ -666,25 +722,100 @@ function polishRussianText(text) {
     .trim();
 }
 
+function applyMemoryCorrectionsToText(text, memory) {
+  let nextText = text;
+  const narrator = memory.find((entry) => entry.narrator);
+
+  if (narrator?.gender === "женский") {
+    nextText = applyFemaleNarratorCorrections(nextText);
+  }
+
+  memory.forEach((entry) => {
+    if (!entry.name) {
+      return;
+    }
+
+    const safeName = escapeRegExp(entry.name.trim());
+    if (entry.gender === "женский") {
+      nextText = nextText
+        .replace(new RegExp(`\\b${safeName}\\s+сказал\\b`, "g"), `${entry.name} сказала`)
+        .replace(new RegExp(`\\b${safeName}\\s+был\\b`, "g"), `${entry.name} была`)
+        .replace(/\bона сказал\b/g, "она сказала")
+        .replace(/\bона был\b/g, "она была");
+    }
+
+    if (entry.gender === "мужской") {
+      nextText = nextText
+        .replace(new RegExp(`\\b${safeName}\\s+сказала\\b`, "g"), `${entry.name} сказал`)
+        .replace(new RegExp(`\\b${safeName}\\s+была\\b`, "g"), `${entry.name} был`)
+        .replace(/\bон сказала\b/g, "он сказал")
+        .replace(/\bон была\b/g, "он был");
+    }
+  });
+
+  return nextText;
+}
+
+function applyFemaleNarratorCorrections(text) {
+  return text
+    .replace(/\b([Яя]) сказал\b/g, "$1 сказала")
+    .replace(/\b([Яя]) сделал\b/g, "$1 сделала")
+    .replace(/\b([Яя]) подумал\b/g, "$1 подумала")
+    .replace(/\b([Яя]) решил\b/g, "$1 решила")
+    .replace(/\b([Яя]) заметил\b/g, "$1 заметила")
+    .replace(/\b([Яя]) увидел\b/g, "$1 увидела")
+    .replace(/\b([Яя]) почувствовал\b/g, "$1 почувствовала")
+    .replace(/\b([Яя]) понял\b/g, "$1 поняла")
+    .replace(/\b([Яя]) пошел\b/g, "$1 пошла")
+    .replace(/\b([Яя]) был\b/g, "$1 была")
+    .replace(/\b([Яя]) мог\b/g, "$1 могла");
+}
+
 function renderCharacterMemory() {
-  const entries = Object.entries(state.characterMemory);
+  const entries = state.characterMemory;
   elements.memoryBadge.textContent = `${entries.length} записей`;
 
   if (!entries.length) {
     elements.characterMemory.className = "memory-list empty-state";
     elements.characterMemory.textContent =
-      "После анализа здесь появятся имена, вероятный род и контекстные заметки.";
+      "После анализа здесь появятся персонажи. Вы сможете сразу поправить имя, род и отметить рассказчика вручную.";
     return;
   }
 
   elements.characterMemory.className = "memory-list";
   elements.characterMemory.innerHTML = entries
     .map(
-      ([name, info]) => `
-        <article class="memory-entry">
-          <strong>${escapeHtml(name)}</strong>
-          <span>Род: ${escapeHtml(info.gender)}</span>
-          <div>${escapeHtml(info.notes.join(", "))}</div>
+      (entry) => `
+        <article class="memory-entry memory-editor" data-id="${escapeHtml(entry.id)}">
+          <div class="memory-grid">
+            <div class="memory-inline">
+              <label>
+                <span>Имя персонажа</span>
+                <input class="memory-name" type="text" value="${escapeHtml(entry.name)}" />
+              </label>
+              <label>
+                <span>Род</span>
+                <select class="memory-gender">
+                  <option value="неопределен" ${entry.gender === "неопределен" ? "selected" : ""}>Неопределен</option>
+                  <option value="женский" ${entry.gender === "женский" ? "selected" : ""}>Женский</option>
+                  <option value="мужской" ${entry.gender === "мужской" ? "selected" : ""}>Мужской</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              <span>Заметка</span>
+              <input class="memory-notes" type="text" value="${escapeHtml(entry.notes || "")}" placeholder="Например: главная героиня, рассказчик" />
+            </label>
+
+            <div class="memory-meta">
+              <label class="memory-check">
+                <input class="memory-narrator" type="checkbox" ${entry.narrator ? "checked" : ""} />
+                <span>Это рассказчик от первого лица</span>
+              </label>
+              <button class="button button-ghost memory-remove" type="button">Удалить</button>
+            </div>
+          </div>
         </article>
       `
     )
@@ -707,6 +838,7 @@ function saveHistoryEntry() {
     url: state.sourceUrl,
     translatedBlocks: state.translatedBlocks,
     sourceBlocks: state.sourceBlocks,
+    characterMemory: state.characterMemory,
     savedAt: new Date().toISOString(),
     language: elements.languageSelect.value,
   };
@@ -744,7 +876,7 @@ function openHistoryEntry(entryId) {
   state.sourceTitle = entry.title;
   state.sourceBlocks = entry.sourceBlocks;
   state.translatedBlocks = entry.translatedBlocks;
-  state.characterMemory = buildCharacterMemory(entry.sourceBlocks);
+  state.characterMemory = entry.characterMemory || mergeCharacterMemory(buildCharacterMemory(entry.sourceBlocks), []);
 
   elements.urlInput.value = entry.url;
   renderSource(entry.sourceBlocks, entry.title, "История");
@@ -753,6 +885,87 @@ function openHistoryEntry(entryId) {
   elements.improveButton.disabled = false;
   elements.saveButton.disabled = false;
   switchTab("translation");
+}
+
+function mergeCharacterMemory(autoMemory, existingMemory) {
+  const merged = [];
+  const existingByName = new Map(
+    (existingMemory || [])
+      .filter((entry) => entry.name?.trim())
+      .map((entry) => [normalizeName(entry.name), entry])
+  );
+
+  autoMemory.forEach((entry) => {
+    const existing = existingByName.get(normalizeName(entry.name));
+    merged.push(
+      existing
+        ? { ...entry, ...existing, id: existing.id || entry.id }
+        : entry
+    );
+  });
+
+  (existingMemory || []).forEach((entry) => {
+    if (!entry.name?.trim()) {
+      return;
+    }
+    if (!merged.some((item) => normalizeName(item.name) === normalizeName(entry.name))) {
+      merged.push(entry);
+    }
+  });
+
+  return merged.slice(0, 16);
+}
+
+function handleAddCharacter() {
+  state.characterMemory = [
+    ...state.characterMemory,
+    {
+      id: createCharacterId(`manual-${state.characterMemory.length + 1}`),
+      name: "",
+      gender: "неопределен",
+      notes: "",
+      narrator: false,
+    },
+  ];
+  renderCharacterMemory();
+}
+
+function handleMemoryInput(event) {
+  const entryNode = event.target.closest("[data-id]");
+  if (!entryNode) {
+    return;
+  }
+
+  const entryId = entryNode.dataset.id;
+  state.characterMemory = state.characterMemory.map((entry) => {
+    if (entry.id !== entryId) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      name: entryNode.querySelector(".memory-name")?.value || "",
+      gender: entryNode.querySelector(".memory-gender")?.value || "неопределен",
+      notes: entryNode.querySelector(".memory-notes")?.value || "",
+      narrator: entryNode.querySelector(".memory-narrator")?.checked || false,
+    };
+  });
+}
+
+function handleMemoryClick(event) {
+  const removeButton = event.target.closest(".memory-remove");
+  if (!removeButton) {
+    return;
+  }
+
+  const entryNode = removeButton.closest("[data-id]");
+  if (!entryNode) {
+    return;
+  }
+
+  const entryId = entryNode.dataset.id;
+  state.characterMemory = state.characterMemory.filter((entry) => entry.id !== entryId);
+  renderCharacterMemory();
 }
 
 function buildExportHtml(title, sourceUrl, blocks) {
@@ -792,6 +1005,10 @@ function normalizeWhitespace(text) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function normalizeName(text) {
+  return normalizeWhitespace(text).toLowerCase();
+}
+
 function stripHtml(html) {
   const div = document.createElement("div");
   div.innerHTML = html;
@@ -811,6 +1028,14 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function createCharacterId(seed) {
+  return `character-${slugify(seed)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function formatDate(value) {
